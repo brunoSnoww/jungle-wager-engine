@@ -1,0 +1,1 @@
+{"Policy":"{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"TrustedInternalProducerOnly\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::000000000000:user/jungle-producer\"},\"Action\":\"sqs:SendMessage\",\"Resource\":\"arn:aws:sqs:us-east-1:000000000000:wager-transactions.fifo\"}]}"}

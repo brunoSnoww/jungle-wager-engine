@@ -1,0 +1,8 @@
+.env
+bin/
+coverage.out
+.cache/
+.omc/state/
+*.log
+.chaos-reports/
+.omc/

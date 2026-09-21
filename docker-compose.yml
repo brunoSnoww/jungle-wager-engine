@@ -1,0 +1,136 @@
+name: jungle-gaming
+
+x-app: &app
+  image: jungle-api:local
+  pull_policy: never
+  build:
+    context: .
+    target: release
+  environment: &app-environment
+    HTTP_ADDR: ':8080'
+    DATABASE_URL: postgres://jungle:jungle-local@postgres:5432/jungle?sslmode=disable
+    OIDC_ISSUER: http://localhost:8081/realms/jungle
+    OIDC_FETCH_ISSUER: http://keycloak:8080/realms/jungle
+    OIDC_AUDIENCE: jungle-api
+    OIDC_ALLOW_INSECURE_HTTP: 'true'
+    AWS_REGION: us-east-1
+    AWS_ACCESS_KEY_ID: test
+    AWS_SECRET_ACCESS_KEY: test
+    SQS_ENDPOINT: http://localstack:4566
+    SQS_INPUT_QUEUE: wager-transactions.fifo
+    SQS_OUTPUT_QUEUE: wager-events.fifo
+    SQS_INPUT_DLQ: wager-transactions-dlq.fifo
+    SQS_OUTPUT_DLQ: wager-events-dlq.fifo
+    SQS_TRUSTED_PROVIDERS: provider-a,provider-b
+  depends_on:
+    migrate: {condition: service_completed_successfully}
+    keycloak: {condition: service_healthy}
+    localstack-init: {condition: service_completed_successfully}
+  stop_grace_period: 55s
+  restart: 'no'
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:18.1@sha256:0033c194dc640cc4dcc62ef7c3117e5791365cca5fc1a2998e5c1693254784bc}
+    # Connection budget: three replicas at DB_MAX_CONNS=20 is 60, the system
+    # suite adds three more processes for another 60, plus migrations, load
+    # harness and operator sessions. The 100 default cannot host that.
+    # The auditor scans the whole ledger with parallel workers, and Docker's
+    # default 64MB /dev/shm is where those workers exchange tuples. Exhausting it
+    # aborts the audit, which then reads as a violation it never found.
+    shm_size: 512m
+    command: ['postgres', '-c', 'max_connections=200']
+    environment:
+      POSTGRES_USER: jungle
+      POSTGRES_PASSWORD: jungle-local
+      POSTGRES_DB: jungle
+    ports: ['127.0.0.1:5433:5432']
+    volumes: [postgres-data:/var/lib/postgresql]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U jungle -d jungle']
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0.7@sha256:4388e2379b7e870a447adbe7b80bd61f5fbf04e925832b19669fda4957f05a81
+    command: ['start-dev', '--import-realm', '--hostname=http://localhost:8081', '--health-enabled=true']
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: local-admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: local-admin-only
+    ports: ['127.0.0.1:8081:8080']
+    volumes: ['./deploy/keycloak/jungle-realm.json:/opt/keycloak/data/import/jungle-realm.json:ro']
+    healthcheck:
+      test: ['CMD-SHELL', "bash -ec 'exec 3<>/dev/tcp/127.0.0.1/9000; printf \"GET /health/ready HTTP/1.0\\r\\n\\r\\n\" >&3; head -n 1 <&3 | grep -q 200'"]
+      start_period: 35s
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  localstack:
+    image: localstack/localstack:3
+    environment:
+      SERVICES: sqs,iam
+      AWS_DEFAULT_REGION: us-east-1
+      SQS_ENDPOINT_STRATEGY: dynamic
+      GATEWAY_LISTEN: 0.0.0.0:4566
+    ports: ['127.0.0.1:4566:4566']
+    healthcheck:
+      test: ['CMD-SHELL', 'awslocal sqs list-queues >/dev/null']
+      interval: 3s
+      timeout: 5s
+      retries: 30
+
+  localstack-init:
+    image: localstack/localstack:3
+    entrypoint: ['/bin/bash', '/provision/init.sh']
+    environment:
+      AWS_ENDPOINT_URL: http://localstack:4566
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    volumes: ['./deploy/localstack:/provision:ro']
+    depends_on:
+      localstack: {condition: service_healthy}
+
+  migrate:
+    image: jungle-api:local
+    pull_policy: never
+    build: {context: ., target: release}
+    entrypoint: ['/migrate']
+    command: ['up']
+    environment:
+      DATABASE_URL: postgres://jungle:jungle-local@postgres:5432/jungle?sslmode=disable
+      MIGRATIONS_DIR: /migrations
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  app-1:
+    <<: *app
+    environment:
+      <<: *app-environment
+      INSTANCE_ID: app-1
+    ports: ['127.0.0.1:8080:8080']
+  app-2:
+    <<: *app
+    profiles: [replicas]
+    environment:
+      <<: *app-environment
+      INSTANCE_ID: app-2
+    ports: ['127.0.0.1:8082:8080']
+  app-3:
+    <<: *app
+    profiles: [replicas]
+    environment:
+      <<: *app-environment
+      INSTANCE_ID: app-3
+    ports: ['127.0.0.1:8083:8080']
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    profiles: [observability]
+    ports: ['127.0.0.1:9090:9090']
+    volumes: ['./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro']
+
+volumes:
+  postgres-data:

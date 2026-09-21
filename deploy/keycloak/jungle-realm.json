@@ -1,0 +1,48 @@
+{
+  "realm": "jungle",
+  "enabled": true,
+  "sslRequired": "none",
+  "accessTokenLifespan": 300,
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "defaultDefaultClientScopes": [],
+  "defaultOptionalClientScopes": [],
+  "clientScopes": [
+    {"name":"wager:write","protocol":"openid-connect","attributes":{"include.in.token.scope":"true"}},
+    {"name":"wager:read","protocol":"openid-connect","attributes":{"include.in.token.scope":"true"}},
+    {"name":"wallet:write","protocol":"openid-connect","attributes":{"include.in.token.scope":"true"}},
+    {"name":"wallet:read","protocol":"openid-connect","attributes":{"include.in.token.scope":"true"}},
+    {"name":"wallet:reconcile","protocol":"openid-connect","attributes":{"include.in.token.scope":"true"}}
+  ],
+  "clients": [
+    {
+      "clientId": "provider-a-client", "secret": "provider-a-local-only", "enabled": true,
+      "protocol": "openid-connect", "publicClient": false, "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false, "directAccessGrantsEnabled": false, "fullScopeAllowed": false,
+      "defaultClientScopes": ["wager:write", "wager:read"],
+      "protocolMappers": [
+        {"name":"provider","protocol":"openid-connect","protocolMapper":"oidc-hardcoded-claim-mapper","config":{"claim.name":"provider_id","claim.value":"provider-a","jsonType.label":"String","access.token.claim":"true","id.token.claim":"false","userinfo.token.claim":"false"}},
+        {"name":"audience","protocol":"openid-connect","protocolMapper":"oidc-audience-mapper","config":{"included.custom.audience":"jungle-api","access.token.claim":"true","id.token.claim":"false"}}
+      ]
+    },
+    {
+      "clientId": "provider-b-client", "secret": "provider-b-local-only", "enabled": true,
+      "protocol": "openid-connect", "publicClient": false, "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false, "directAccessGrantsEnabled": false, "fullScopeAllowed": false,
+      "defaultClientScopes": ["wager:write", "wager:read"],
+      "protocolMappers": [
+        {"name":"provider","protocol":"openid-connect","protocolMapper":"oidc-hardcoded-claim-mapper","config":{"claim.name":"provider_id","claim.value":"provider-b","jsonType.label":"String","access.token.claim":"true","id.token.claim":"false","userinfo.token.claim":"false"}},
+        {"name":"audience","protocol":"openid-connect","protocolMapper":"oidc-audience-mapper","config":{"included.custom.audience":"jungle-api","access.token.claim":"true","id.token.claim":"false"}}
+      ]
+    },
+    {
+      "clientId": "wallet-internal-client", "secret": "wallet-internal-local-only", "enabled": true,
+      "protocol": "openid-connect", "publicClient": false, "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false, "directAccessGrantsEnabled": false, "fullScopeAllowed": false,
+      "defaultClientScopes": ["wallet:write", "wallet:read", "wallet:reconcile"],
+      "protocolMappers": [
+        {"name":"audience","protocol":"openid-connect","protocolMapper":"oidc-audience-mapper","config":{"included.custom.audience":"jungle-api","access.token.claim":"true","id.token.claim":"false"}}
+      ]
+    }
+  ]
+}

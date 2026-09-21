@@ -1,0 +1,8 @@
+.git
+.omc
+.cache
+bin
+vendor
+*.log
+coverage*
+.env
