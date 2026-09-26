@@ -1,4 +1,4 @@
-# Jungle Gaming — Wallet & Wager Engine
+Wallet & Wager Engine
 
 Serviço Go para operações de apostas por HTTP e SQS. PostgreSQL coordena as
 instâncias; carteira, ledger, idempotência, inbox e outbox compartilham uma
